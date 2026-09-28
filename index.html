@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تطبيق ديسكورد العربي المتكامل</title>
+    <!-- تضمين خط Cairo الأنيق و Tailwind CSS للمظهر الاحترافي المظلم -->
+    <link href="https://googleapis.com" rel="stylesheet">
+    <script src="https://tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { font-family: 'Cairo', sans-serif; background-color: #1e1f22; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #1a1b1e; border-radius: 4px; }
+    </style>
+</head>
+<body class="h-screen text-gray-200 overflow-hidden select-none">
+
+    <!-- 1. شاشة تسجيل الدخول وإنشاء الحساب (تظهر أولاً) -->
+    <div id="auth-screen" class="flex items-center justify-center h-full bg-[#1e1f22]">
+        <div class="bg-[#313338] p-8 rounded-lg shadow-xl w-full max-w-md border border-gray-700">
+            <h2 id="auth-title" class="text-2xl font-bold text-center mb-6 text-white">تسجيل الدخول للتطبيق</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 uppercase mb-2">اسم المستخدم</label>
+                    <input type="text" id="auth-username" class="w-full p-2.5 bg-[#1e1f22] border border-transparent rounded text-white focus:border-[#5865f2] outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 uppercase mb-2">كلمة المرور</label>
+                    <input type="password" id="auth-password" class="w-full p-2.5 bg-[#1e1f22] border border-transparent rounded text-white focus:border-[#5865f2] outline-none">
+                </div>
+                <button onclick="handleAuth()" id="auth-btn" class="w-full py-2.5 bg-[#5865f2] hover:bg-[#4752c4] text-white font-semibold rounded transition">دخول</button>
+                <p class="text-sm text-gray-400 text-center mt-4">
+                    <span id="auth-toggle-text">ليس لديك حساب؟</span> 
+                    <a href="#" onclick="toggleAuthMode()" id="auth-toggle-link" class="text-[#00a8fc] hover:underline">إنشاء حساب جديد</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. واجهة الشات الرئيسية المتكاملة (مخفية حتى تسجيل الدخول) -->
+    <div id="main-app" class="hidden flex h-full w-full">
+        
+        <!-- الشريط الأول (يمين): شريط السيرفرات -->
+        <div class="w-[72px] bg-[#1e1f22] flex flex-col items-center py-3 space-y-2 border-l border-[#1a1b1e]">
+            <div class="w-12 h-12 bg-[#5865f2] rounded-3xl flex items-center justify-center font-bold text-white cursor-pointer hover:rounded-2xl transition-all" title="الرئيسية">🏠</div>
+            <div class="w-8 h-[2px] bg-[#35363c] rounded my-1"></div>
+            <div id="servers-list" class="flex flex-col space-y-2 overflow-y-auto w-full items-center">
+                <!-- السيرفرات تظهر هنا تلقائياً -->
+            </div>
+            <div onclick="createNewServer()" class="w-12 h-12 bg-[#313338] hover:bg-[#23a55a] text-[#23a55a] hover:text-white rounded-3xl hover:rounded-2xl flex items-center justify-center font-bold text-2xl cursor-pointer transition-all" title="إنشاء سيرفر جديد">+</div>
+        </div>
+
+        <!-- الشريط الثاني: شريط القنوات وغرف المحادثة -->
+        <div class="w-60 bg-[#2b2d31] flex flex-col justify-between">
+            <div>
+                <div class="h-12 border-b border-[#1f2023] flex items-center px-4 font-bold text-white shadow-sm" id="current-server-name">اختر سيرفر</div>
+                <div class="p-3 flex justify-between items-center text-xs font-bold text-gray-400">
+                    <span>القنوات النصية</span>
+                    <span onclick="createNewChannel()" class="cursor-pointer text-lg hover:text-white" title="إضافة قناة">+</span>
+                </div>
+                <div id="channels-list" class="px-2 space-y-0.5 overflow-y-auto">
+                    <!-- القنوات النصية تظهر هنا -->
+                </div>
+            </div>
+            <!-- الملف الشخصي للمستخدم أسفل قائمة القنوات -->
+            <div class="h-14 bg-[#232428] flex items-center justify-between px-2 border-t border-[#1f2023]">
+                <div class="flex items-center space-x-2 space-x-reverse">
+                    <img id="user-avatar" class="w-8 h-8 rounded-full bg-gray-600" src="">
+                    <div class="flex flex-col">
+                        <span id="user-display-name" class="text-sm font-semibold text-white truncate max-w-[100px]">..</span>
+                        <span class="text-[10px] text-gray-400">متصل 🟢</span>
+                    </div>
+                </div>
+                <button class="text-gray-400 hover:text-white p-1 text-sm">⚙️</button>
+            </div>
+        </div>
+
+        <!-- الشريط الثالث (المنتصف): منطقة الشات والرسائل الفورية -->
+        <div class="flex-1 bg-[#313338] flex flex-col justify-between">
+            <div class="h-12 border-b border-[#2b2d31] flex items-center px-4 font-bold text-white shadow-sm" id="current-channel-name"># اختر قناة للبدء</div>
+            
+            <!-- قائمة الرسائل المسترجعة واللحظية -->
+            <div id="messages-container" class="flex-1 p-4 overflow-y-auto space-y-4">
+                <p class="text-gray-400 text-center mt-10">مرحباً بك! يرجى اختيار سيرفر وقناة للبدء في إرسال الرسائل.</p>
+            </div>
+
+            <!-- حقل الإدخال المتطور للرسائل ورفع الصور والملفات -->
+            <div class="p-4 bg-[#313338]">
+                <div class="bg-[#383a40] rounded-lg p-2.5 flex items-center space-x-3 space-x-reverse">
+                    <label class="cursor-pointer text-gray-400 hover:text-white text-xl px-2">
+                        ➕
+                        <input type="file" id="file-input" class="hidden" onchange="uploadFile()">
+                    </label>
+                    <input type="text" id="message-input" onkeypress="checkSend(event)" placeholder="إرسال رسالة فورية داخل القناة..." class="flex-1 bg-transparent text-white outline-none border-none text-sm placeholder-gray-500">
+                </div>
+            </div>
+        </div>
+
+        <!-- الشريط الرابع (اليسار): قائمة الأعضاء المتصلين حالياً بالخدمة -->
+        <div class="w-60 bg-[#2b2d31] border-r border-[#232428] p-3 hidden md:block">
+            <div class="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">الأعضاء المتصلون حالياً</div>
+            <div id="online-users-list" class="space-y-2">
+                <!-- قائمة المستخدمين المتصلين لحظياً -->
+            </div>
+        </div>
+
+    </div>
+
+    <!-- السكريبت التشغيلي ونظام إدارة الحسابات والاتصال المباشر بقاعدة البيانات والسيرفر -->
+    <script>
+        const socket = io();
+        let isLoginMode = true;
+        let currentUser = null;
+        let activeServerId = null;
+        let activeChannelId = null;
+
+        function toggleAuthMode() {
+            isLoginMode = !isLoginMode;
+            document.getElementById('auth-title').innerText = isLoginMode ? 'تسجيل الدخول للتطبيق' : 'إنشاء حساب جديد باللغة العربية';
+            document.getElementById('auth-btn').innerText = isLoginMode ? 'دخول' : 'تسجيل الحساب الجديد';
+            document.getElementById('auth-toggle-text').innerText = isLoginMode ? 'ليس لديك حساب؟' : 'لديك حساب بالفعل؟';
+            document.getElementById('auth-toggle-link').innerText = isLoginMode ? 'إنشاء حساب جديد' : 'تسجيل دخول';
+        }
+
+        async function handleAuth() {
+            const username = document.getElementById('auth-username').value;
+            const password = document.getElementById('auth-password').value;
+            const endpoint = isLoginMode ? '/api/login' : '/api/register';
+
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+            if (data.error) return alert(data.error);
+
+            if (isLoginMode) {
+                currentUser = data.user;
+                initApp();
+            } else {
+                alert('تم إنشاء الحساب بنجاح! يرجى تسجيل الدخول الآن.');
+                toggleAuthMode();
+            }
+        }
+
+        function initApp() {
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('main-app').classList.remove('hidden');
+            document.getElementById('user-display-name').innerText = currentUser.username;
+            document.getElementById('user-avatar').src = currentUser.avatar;
+
+            socket.emit('user_connected', currentUser.username);
+            loadServers();
+        }
+
+        async function loadServers() {
+            const res = await fetch('/api/servers');
+            const servers = await res.json();
+            const list = document.getElementById('servers-list');
+            list.innerHTML = '';
+            servers.forEach(srv => {
+                list.innerHTML += `<img onclick="selectServer(${srv.id}, '${srv.name}')" src="${srv.icon}" class="w-12 h-12 rounded-3xl hover:rounded-2xl cursor-pointer transition-all border border-gray-700" title="${srv.name}">`;
+            });
+        }
+
+        async function createNewServer() {
+            const name = prompt('أدخل اسم السيرفر العربي الجديد:');
+            if (!name) return;
+            const res = await fetch('/api/servers', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            loadServers();
+        }
+
+        async function selectServer(id, name) {
+            activeServerId = id;
+            document.getElementById('current-server-name').innerText = name;
+            loadChannels();
